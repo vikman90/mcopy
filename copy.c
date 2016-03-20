@@ -15,8 +15,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define F_MODE 0664
-
 /* Copies content between files. Return -1 on error. */
 static int copy(int fd_orig, int fd_dest, size_t length);
 
@@ -35,16 +33,16 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Can't open file %s: %s\n", argv[1], strerror(errno));
         return EXIT_FAILURE;
     }
-
-    /* Target file must be opened in mode read/write */
-    fd_dest = open(argv[2], O_RDWR | O_CREAT | O_TRUNC, F_MODE);
-    if (fd_dest < 0) {
-        fprintf(stderr, "Can't create file %s: %s\n", argv[2], strerror(errno));
-        return EXIT_FAILURE;
-    }
     
     if (fstat(fd_orig, &stat_orig) < 0) {
         fprintf(stderr, "Can't get information about %s: %s\n", argv[1], strerror(errno));
+        return EXIT_FAILURE;
+    }
+    
+    /* Target file must be opened in mode read/write */
+    fd_dest = open(argv[2], O_RDWR | O_CREAT | O_TRUNC, stat_orig.st_mode);
+    if (fd_dest < 0) {
+        fprintf(stderr, "Can't create file %s: %s\n", argv[2], strerror(errno));
         return EXIT_FAILURE;
     }
     

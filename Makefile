@@ -7,8 +7,15 @@ TARGET  ?= mcp
 BIN     ?= /usr/local/bin
 CC      ?= gcc
 RM      ?= rm -f
-CFLAGS  += -Wall -Wextra -pipe -O2
+CFLAGS  += -Wall -Wextra -pipe
 INSTALL ?= install -m 755
+
+ifeq ($(DEBUG), 1)
+	DEFINES += -DDEBUG
+	CFLAGS  += -g
+else
+	CFLAGS  += -O2
+endif
 
 .PHONY: all build clean install uninstall test-root
 
@@ -31,4 +38,4 @@ ifneq (${USER},root)
 endif
 
 $(TARGET): copy.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(DEFINES) $(CFLAGS) -o $@ $^

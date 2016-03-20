@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <libgen.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -16,6 +17,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <linux/limits.h>
 
 // Copies content between files. Return -1 on error.
 static int copy(int fd_orig, int fd_dest, size_t length);
@@ -102,6 +104,7 @@ int main(int argc, char **argv) {
         }
 
         debug("copy_dir %s -> %s", path_orig, path_dest);
+
         if (copy_dir(fd_orig, fd_dest) < 0) {
             fprintf(stderr, "Can't copy directory %s: %s\n", path_orig, strerror(errno));
             return EXIT_FAILURE;
@@ -113,23 +116,40 @@ int main(int argc, char **argv) {
 
         // If destination exists and it isn't a regular file, exit
 
-        fd_dest = open(path_dest, O_RDWR | O_CREAT | O_TRUNC, stat_orig.st_mode);
-        if (fd_dest < 0) {
-            fprintf(stderr, "Can't create %s: %s\n", path_dest, strerror(errno));
-            return EXIT_FAILURE;
-        }
+        if (stat(path_dest, &stat_dest) < 0) {
+            fd_dest = open(path_dest, O_RDWR | O_CREAT | O_TRUNC, stat_orig.st_mode);
+            if (fd_dest < 0) {
+                fprintf(stderr, "Can't create %s: %s\n", path_dest, strerror(errno));
+                return EXIT_FAILURE;
+            }
+        } else {
+            char path_buf[PATH_MAX];
+            strncpy(path_buf, path_dest, PATH_MAX);
 
-        if (fstat(fd_dest, &stat_dest) < 0) {
-            fprintf(stderr, "Can't get information about %s: %s\n", path_dest, strerror(errno));
-            return EXIT_FAILURE;
-        }
+            switch (stat_dest.st_mode & S_IFMT) {
+            case S_IFDIR:
+                strncat(path_buf, "/", PATH_MAX - strlen(path_buf));
+                strncat(path_buf, basename(strdup(path_orig)), PATH_MAX - strlen(path_buf));
 
-        if (!S_ISREG(stat_dest.st_mode)) {
-            fprintf(stderr, "%s is not a regular file\n",path_dest);
-            return EXIT_FAILURE;
+            case S_IFREG:
+                debug("Creating %s", path_buf);
+                fd_dest = open(path_buf, O_RDWR | O_CREAT | O_TRUNC, stat_orig.st_mode);
+
+                if (fd_dest < 0) {
+                    fprintf(stderr, "Can't create %s: %s\n", path_buf, strerror(errno));
+                    return EXIT_FAILURE;
+                }
+
+                break;
+
+            default:
+                fprintf(stderr, "%s is not a regular file\n",path_dest);
+                return EXIT_FAILURE;
+            }
         }
 
         debug("copy_file %s -> %s (%zu)", path_orig, path_dest, (size_t)stat_orig.st_size);
+
         if (copy(fd_orig, fd_dest, (size_t)stat_orig.st_size) < 0) {
             fprintf(stderr, "Can't copy %s: %s\n", path_orig, strerror(errno));
             return EXIT_FAILURE;

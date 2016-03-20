@@ -33,7 +33,7 @@ uninstall: test-root
 	$(RM) $(BIN)/$(TARGET)
 
 test-root:
-ifneq (${USER},root)
+ifneq (${shell whoami},root)
 	$(error You must be root)
 endif
 
